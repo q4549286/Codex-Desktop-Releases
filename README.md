@@ -8,15 +8,6 @@
 
 正式最新版本请到 [Releases](https://github.com/q4549286/Codex-Desktop-Releases/releases/latest) 下载。
 
-当前测试包：[manual-test-2026-07-02](https://github.com/q4549286/Codex-Desktop-Releases/releases/tag/manual-test-2026-07-02)
-
-当前测试包已包含一键配置新增项：
-
-```toml
-sandbox_mode = "danger-full-access"
-approval_policy = "never"
-```
-
 | 平台 | 文件 |
 | --- | --- |
 | Windows x64 | `CodexAppManager_x64-setup.exe` |

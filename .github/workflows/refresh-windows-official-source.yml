@@ -1,0 +1,131 @@
+name: Refresh Windows official source
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "3,13,23,33,43,53 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-windows-official-source
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # Pin the resolver revision. It talks directly to Microsoft's Store/FE3
+      # APIs and only prints the selected package moniker and temporary CDN URL.
+      - uses: actions/checkout@v6
+        with:
+          repository: Wangnov/codex-app-mirror
+          ref: fff833b2f668e9f64b3532ad765cc0f32e54382d
+          path: .store-resolver
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve and validate Microsoft CDN URL
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          manifest_url="https://codexapp-r2.agentsmirror.com/latest/manifest"
+          manifest="$(curl -fsSL --proto '=https' --connect-timeout 15 --max-time 60 "$manifest_url")"
+          expected_moniker="$(jq -er '.sources.windows.architectures.x64.packageMoniker // .sources.windows.packageMoniker' <<<"$manifest")"
+          expected_size="$(jq -er '.sources.windows.architectures.x64.contentLength // .sources.windows.contentLength' <<<"$manifest")"
+          app_version="$(jq -er '.sources.windows.architectures.x64.appVersion // .sources.windows.appVersion // .codexVersion' <<<"$manifest")"
+          package_version="$(jq -er '.sources.windows.architectures.x64.version // .sources.windows.version' <<<"$manifest")"
+
+          resolver_output="$(dotnet run --project .store-resolver/scripts/store-link -- 9PLM9XGG6VKS x64 OpenAI.Codex)"
+          resolved_line="$(awk -F '\t' '$1 ~ /^OpenAI\.Codex_/ { print; exit }' <<<"$resolver_output")"
+          resolved_moniker="${resolved_line%%$'\t'*}"
+          resolved_url="${resolved_line#*$'\t'}"
+
+          test -n "$resolved_line"
+          test "$resolved_moniker" = "$expected_moniker"
+          test "$expected_size" -gt 0
+
+          export RESOLVED_URL="$resolved_url"
+          normalized_url="$(python3 - <<'PY'
+          import os
+          import sys
+          from urllib.parse import parse_qs, urlsplit, urlunsplit
+
+          url = os.environ["RESOLVED_URL"]
+          parsed = urlsplit(url)
+          host = (parsed.hostname or "").lower()
+          if parsed.scheme not in {"http", "https"}:
+              raise SystemExit("Microsoft package URL has an unsupported scheme")
+          if host != "dl.delivery.mp.microsoft.com" and not host.endswith(".dl.delivery.mp.microsoft.com"):
+              raise SystemExit(f"Microsoft package URL has an unexpected host: {host}")
+          query = parse_qs(parsed.query)
+          expiry = query.get("P1", [""])[0]
+          if not expiry.isdigit():
+              raise SystemExit("Microsoft package URL is missing its P1 expiry")
+          print(urlunsplit(("https", parsed.netloc, parsed.path, parsed.query, parsed.fragment)))
+          PY
+          )"
+
+          # Fetch a single byte over HTTPS. This confirms that changing FE3's
+          # returned http URL to https works without downloading the full MSIX.
+          curl -fsSL \
+            --proto '=https' \
+            --connect-timeout 15 \
+            --max-time 60 \
+            --range 0-0 \
+            --max-filesize 1 \
+            --output /dev/null \
+            "$normalized_url"
+
+          export NORMALIZED_URL="$normalized_url"
+          export EXPECTED_MONIKER="$expected_moniker"
+          export EXPECTED_SIZE="$expected_size"
+          export APP_VERSION="$app_version"
+          export PACKAGE_VERSION="$package_version"
+          mkdir -p official-source
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from urllib.parse import parse_qs, urlsplit
+
+          url = os.environ["NORMALIZED_URL"]
+          expires = int(parse_qs(urlsplit(url).query)["P1"][0])
+          document = {
+              "schemaVersion": 1,
+              "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "expiresAt": datetime.fromtimestamp(expires, timezone.utc).isoformat().replace("+00:00", "Z"),
+              "storeProductId": "9PLM9XGG6VKS",
+              "packageIdentity": "OpenAI.Codex",
+              "architecture": "x64",
+              "version": os.environ["APP_VERSION"],
+              "packageVersion": os.environ["PACKAGE_VERSION"],
+              "packageMoniker": os.environ["EXPECTED_MONIKER"],
+              "contentLength": int(os.environ["EXPECTED_SIZE"]),
+              "url": url,
+          }
+          with open("official-source/windows-x64.json", "w", encoding="utf-8") as output:
+              json.dump(document, output, ensure_ascii=True, indent=2)
+              output.write("\n")
+          PY
+
+      - name: Publish refreshed URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add official-source/windows-x64.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: refresh Windows official source"
+          git push
