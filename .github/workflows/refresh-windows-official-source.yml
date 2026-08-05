@@ -59,7 +59,7 @@ jobs:
           normalized_url="$(python3 - <<'PY'
           import os
           import sys
-          from urllib.parse import parse_qs, urlsplit, urlunsplit
+          from urllib.parse import parse_qs, urlsplit
 
           url = os.environ["RESOLVED_URL"]
           parsed = urlsplit(url)
@@ -72,14 +72,17 @@ jobs:
           expiry = query.get("P1", [""])[0]
           if not expiry.isdigit():
               raise SystemExit("Microsoft package URL is missing its P1 expiry")
-          print(urlunsplit(("https", parsed.netloc, parsed.path, parsed.query, parsed.fragment)))
+          print(url)
           PY
           )"
 
-          # Fetch a single byte over HTTPS. This confirms that changing FE3's
-          # returned http URL to https works without downloading the full MSIX.
+          # FE3 currently returns an HTTP URL whose tlu hostname is not covered
+          # by Microsoft's HTTPS certificate. Probe the original signed URL,
+          # disallow redirects, and cap the response to one byte.
           curl -fsSL \
-            --proto '=https' \
+            --proto '=http,https' \
+            --proto-redir '=http,https' \
+            --max-redirs 0 \
             --connect-timeout 15 \
             --max-time 60 \
             --range 0-0 \
