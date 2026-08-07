@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-07T20:58:09.491883Z",
-  "expiresAt": "2026-08-08T00:50:49Z",
+  "generatedAt": "2026-08-07T21:55:25.461264Z",
+  "expiresAt": "2026-08-08T01:48:05Z",
   "storeProductId": "9PLM9XGG6VKS",
   "packageIdentity": "OpenAI.Codex",
   "architecture": "x64",
@@ -9,5 +9,5 @@
   "packageVersion": "26.803.5235.0",
   "packageMoniker": "OpenAI.Codex_26.803.5235.0_x64__2p2nqsd0c76g0",
   "contentLength": 699660443,
-  "url": "http://tlu.dl.delivery.mp.microsoft.com/filestreamingservice/files/2abd4cac-6e68-43a1-b571-d5b3345d9073?P1=1786150249&P2=404&P3=2&P4=m3e%2bOH61dmMZFER8gd%2bQqIEqS1tB%2fbf%2fAkjRmWlf0gsCazeZOSf%2bVLSlmRPNk6h9a9NTIDlIWoT7vFYSaKu1eA%3d%3d"
+  "url": "http://tlu.dl.delivery.mp.microsoft.com/filestreamingservice/files/2abd4cac-6e68-43a1-b571-d5b3345d9073?P1=1786153685&P2=404&P3=2&P4=C5mIf7fUuP47HucIV2WYdyi2VjmVc2vaInDv3dWUmTiUhgVTR8MPM7Z%2fnh1uPim5sq2t61yPFZRi%2bgZrjkLApw%3d%3d"
 }
